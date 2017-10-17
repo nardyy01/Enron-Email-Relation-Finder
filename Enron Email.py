@@ -3,7 +3,7 @@ import os
 import json
 import webbrowser
 
-path = 'Email/'
+path = 'Email/'  #Create a folder named "Email" to place Enron emails into
 values = []
 run = 0
 tempEmail = ""

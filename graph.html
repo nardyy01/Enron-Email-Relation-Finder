@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+html, body {
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	background-color: green;
+}
+#container {
+	width: inherit;
+	height: inherit;
+	margin: 0;
+	padding: 0;
+}
+h1 {
+	margin: 0;
+	padding: 0;
+}
+
+.link {
+  fill: none;
+  stroke: #666;
+  stroke-width: 1.5px;
+}
+
+circle {
+  fill: #ccc;
+  stroke: #333;
+  stroke-width: 1.5px;
+}
+
+text {
+  font: 10px sans-serif;
+  pointer-events: none;
+  text-shadow: 0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff;
+}
+
+.node text {
+	font-family: sans-serif;
+	font-size: 10px;
+}
+
+.d3-tip {
+	font-family: sans-serif;
+	font-size: 10px;
+	font-weight: bold;
+	line-height: 1;
+	background: black;
+	color: white;
+	padding: 10px;
+}
+
+</style>
+<body>
+<script src="d3.v3.min.js"></script>
+<script src="d3.tip.v0.6.3.js"></script>
+<script src="https://code.jquery.com/jquery-1.12.3.min.js"></script>
+<script>
+
+
+
+var links = [];
+nod = [];
+anbor = [];
+nborl = [];
+
+$.ajax({
+	url: 'data.json',
+	dataType: 'json',
+	type: 'get',
+	cache: false,
+	async: false,
+	success: function(data) {
+		$.each(data.emails, function(index, v) { 
+			var holder = {}
+            JSON.parse(JSON.stringify(v), (key,value) =>{
+				if(key == 'source'){
+					holder.source=value;
+				}else if(key == 'target'){
+					holder.target=value;
+				}		
+				return holder;
+			});
+			//console.log(holder);
+			links.push(holder);		
+            
+		});
+	}
+
+});
+
+
+console.log(links)
+links.forEach(function(link) {
+	flag = true;
+	flag2 = true;
+	for(i=0;i<nod.length;i++) {
+	    if(link.source == nod[i]) flag=false;
+	    if(link.target == nod[i]) flag2=false;
+	}
+	if(flag) nod.push(link.source);
+	if(flag2) nod.push(link.target);
+});
+
+for(i=0;i<nod.length;i++) {
+	nbors = [];
+	links.forEach(function(link) {
+		if(link.source == nod[i]) {
+			flag = true;
+			for(j=0;j<nbors.length;j++)
+				if(link.target == nbors[j]) flag=false;
+			if(flag) nbors.push(link.target);
+		}
+		if(link.target == nod[i]) {
+			flag = true;
+			for(j=0;j<nbors.length;j++) 
+				if(link.source == nbors[j]) flag=false;
+			if(flag) nbors.push(link.source);
+		}
+	});
+	anbor.push(nbors);
+};
+
+for(i=0;i<nod.length;i++) {
+	nbort = "";
+	for(j=0;j<anbor[i].length;j++)
+		nbort = nbort + anbor[i][j] + "<p>";	
+	nborl[nod[i]] = nbort;
+};
+
+var nodes = {};
+
+// Compute the distinct nodes from the links.
+links.forEach(function(link) {
+  link.source = nodes[link.source] || (nodes[link.source] = {name: link.source});
+  link.target = nodes[link.target] || (nodes[link.target] = {name: link.target});
+});
+
+var width = 3000,
+    height = 3000;
+
+//Adapted from Internet Sources
+var force = d3.layout.force()
+    .nodes(d3.values(nodes))
+    .links(links)
+    .size([width, height])
+    .linkDistance(60)
+    .charge(-300)
+    .on("tick", tick)
+    .start();
+
+var node_drag = d3.behavior.drag()
+    .on("dragstart", dragstart)
+    .on("drag", dragmove)
+    .on("dragend", dragend);
+
+function dragstart(d) {
+    force.stop();
+}
+
+function dragmove(d) {
+    d.px += d3.event.dx;
+    d.py += d3.event.dy;
+    d.x  += d3.event.dx;
+    d.y  += d3.event.dy;
+}
+
+function dragend(d) {
+    d.fixed = true; 
+    force.resume();
+}
+
+function dblclicknode(d) {
+
+    if(d.fixed == false) {
+	d.fixed = true; 
+	force.stop();
+    }
+    else {
+	d.fixed = false; 
+	force.resume();
+    }
+}
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+var tip = d3.tip()
+    .attr("class", "d3-tip")
+    .offset([-10, 0])
+    .html(function(d) { 
+	return nborl[d.name];
+    })
+svg.call(tip);
+
+// Per-type markers, as they don't inherit styles.
+svg.append("defs").selectAll("marker")
+    .data(["suit", "licensing", "resolved"])
+  .enter().append("marker")
+    .attr("id", function(d) { return d; })
+    .attr("viewBox", "0 -5 10 10")
+    .attr("refX", 15)
+    .attr("refY", -1.5)
+    .attr("markerWidth", 6)
+    .attr("markerHeight", 6)
+    .attr("orient", "auto")
+  .append("path")
+    .attr("d", "M0,-5L10,0L0,5");
+
+var path = svg.append("g").selectAll("path")
+    .data(force.links())
+  .enter().append("path")
+    .attr("class", function(d) { return "link " + d.type; })
+    .style("stroke", function(d) {
+		if(d.type == "licensing") return "blue";
+		if(d.type == "suit") return "red";
+		if(d.type == "resolved") return "green";})
+    .attr("marker-end", function(d) { return "url(#" + d.type + ")"; });
+
+var node = svg.selectAll(".node")
+    .data(force.nodes())
+    .enter().append("g")
+    .attr("class", "node")
+    .call(force.drag)
+    .on('mouseover', tip.show)
+    .on('mouseout', tip.hide)
+    .on('dblclick', dblclicknode);
+
+    node.append("circle")
+	.attr("r", 8)
+	.style("fill", function(d) { return "yellow";})
+	.each(function() {
+	   var sel = d3.select(this);
+	   var state = false;
+	   sel.on('dblclick', function() {
+		state = !state;
+		if (state) {
+			sel.style("fill", "purple");
+		} else {
+			sel.style("fill", "yellow");
+		}
+	   });
+	});
+
+    node.append("text")
+	.attr("dx", 10)
+	.attr("dy", ".35em")
+	.text(function(d) { return d.name;});
+
+// Use elliptical arc path segments to doubly-encode directionality.
+function tick() {
+  path.attr("d", linkArc);
+  node.attr("transform", transform);
+}
+
+function linkArc(d) {
+  var dx = d.target.x - d.source.x,
+      dy = d.target.y - d.source.y,
+      dr = Math.sqrt(dx * dx + dy * dy);
+  return "M" + d.source.x + "," + d.source.y + "A" + dr + "," + dr + " 0 0,1 " + d.target.x + "," + d.target.y;
+}
+
+function transform(d) {
+  return "translate(" + d.x + "," + d.y + ")";
+}
+
+</script>
